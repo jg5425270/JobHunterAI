@@ -8,6 +8,16 @@ JobFlow is a full-stack job application management system built with modern web 
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### 2025-01-14: Added Tabbed Interface and Migration Documentation
+- **Fixed Dashboard Tabs**: Added functional tabbed interface for job applications and email settings
+- **Architecture Documentation**: Created comprehensive ARCHITECTURE.md with system design, security, and scalability details
+- **Migration Guide**: Created MIGRATION_GUIDE.md with step-by-step instructions for deploying to free cloud services (Railway, Vercel, Fly.io, Render)
+- **Deployment Script**: Added scripts/deploy.js for automated deployment preparation
+- **Data Persistence**: Implemented backup/restore utilities for data migration
+- **UI Components**: Added missing Switch component for email settings toggle
+
 ## System Architecture
 
 ### Frontend Architecture
