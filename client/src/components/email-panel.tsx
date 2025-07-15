@@ -1,10 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Clock, Mail, TrendingUp } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { isUnauthorizedError } from "@/lib/authUtils";
 
 export default function EmailPanel() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const { data: unreadEmails = [], isLoading } = useQuery({
     queryKey: ["/api/emails/unread"],
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -12,6 +18,40 @@ export default function EmailPanel() {
 
   const { data: settings } = useQuery({
     queryKey: ["/api/settings"],
+  });
+
+  // Mutation to enable email integration
+  const enableEmailIntegrationMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/settings", {
+        emailIntegrationEnabled: true,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "Email Integration Enabled",
+        description: "Your email integration has been enabled successfully!",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to enable email integration. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Mock data for demonstration - in real app this would come from API
@@ -23,6 +63,10 @@ export default function EmailPanel() {
   };
 
   const recentEmail = unreadEmails[0];
+
+  const handleEnableEmailIntegration = () => {
+    enableEmailIntegrationMutation.mutate();
+  };
 
   if (isLoading) {
     return (
@@ -111,8 +155,13 @@ export default function EmailPanel() {
                 </p>
               </div>
             </div>
-            <Button className="mt-2 bg-blue-600 hover:bg-blue-700 text-white" size="sm">
-              Enable Email Integration
+            <Button 
+              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white" 
+              size="sm"
+              onClick={handleEnableEmailIntegration}
+              disabled={enableEmailIntegrationMutation.isPending}
+            >
+              {enableEmailIntegrationMutation.isPending ? "Enabling..." : "Enable Email Integration"}
             </Button>
           </div>
         )}

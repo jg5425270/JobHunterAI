@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Mail, Edit, Trash2, Users, Send } from "lucide-react";
+import { Plus, Mail, Edit, Trash2, Users, Send, CheckCircle } from "lucide-react";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import type { Contact } from "@shared/schema";
@@ -139,9 +139,12 @@ export default function Contacts() {
 
   const sendEmailCampaignMutation = useMutation({
     mutationFn: async (campaign: typeof emailCampaign & { contactIds: number[] }) => {
-      await apiRequest("POST", "/api/email-campaigns", campaign);
+      const createdCampaign = await apiRequest("POST", "/api/email-campaigns", campaign);
+      // Send the campaign immediately after creation
+      await apiRequest("POST", `/api/email-campaigns/${createdCampaign.id}/send`);
+      return createdCampaign;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-campaigns"] });
       setShowEmailCampaign(false);
       setSelectedContacts([]);
@@ -151,8 +154,8 @@ export default function Contacts() {
         template: "",
       });
       toast({
-        title: "Email Campaign Created",
-        description: "Email campaign has been created and will be sent.",
+        title: "Email Campaign Sent",
+        description: `Email campaign has been sent to ${data.sent || 0} contacts successfully!`,
       });
     },
     onError: (error) => {
@@ -169,7 +172,7 @@ export default function Contacts() {
       }
       toast({
         title: "Error",
-        description: "Failed to create email campaign. Please try again.",
+        description: "Failed to send email campaign. Please try again.",
         variant: "destructive",
       });
     },
@@ -241,6 +244,17 @@ export default function Contacts() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
           <div className="flex gap-2">
+            {settings?.emailIntegrationEnabled ? (
+              <Badge variant="default" className="bg-green-100 text-green-800">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Email Integration Active
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="bg-gray-100 text-gray-800">
+                <Mail className="h-3 w-3 mr-1" />
+                Email Integration Disabled
+              </Badge>
+            )}
             <Dialog open={showEmailCampaign} onOpenChange={setShowEmailCampaign}>
               <DialogTrigger asChild>
                 <Button 
@@ -288,6 +302,20 @@ export default function Contacts() {
                     />
                   </div>
                   
+                  {!settings?.emailIntegrationEnabled && (
+                    <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <div className="flex items-center">
+                        <Mail className="h-5 w-5 text-yellow-600 mr-2" />
+                        <div>
+                          <p className="text-sm font-medium text-yellow-900">Email Integration Required</p>
+                          <p className="text-sm text-yellow-700">
+                            Enable email integration in the dashboard to send emails to contacts.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="flex justify-end space-x-2">
                     <Button 
                       variant="outline" 
@@ -297,7 +325,7 @@ export default function Contacts() {
                     </Button>
                     <Button 
                       onClick={handleSendEmailCampaign}
-                      disabled={sendEmailCampaignMutation.isPending}
+                      disabled={sendEmailCampaignMutation.isPending || !settings?.emailIntegrationEnabled}
                     >
                       {sendEmailCampaignMutation.isPending ? "Sending..." : "Send Campaign"}
                     </Button>

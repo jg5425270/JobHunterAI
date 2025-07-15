@@ -497,14 +497,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Campaign not found" });
       }
 
-      // This would integrate with SendGrid to send emails
-      // For now, just mark as sent
+      // Get contacts for this campaign
+      const contacts = await Promise.all(
+        (campaign.contactIds || []).map(contactId => storage.getContact(contactId))
+      );
+      
+      const validContacts = contacts.filter(contact => contact !== undefined);
+      
+      if (validContacts.length === 0) {
+        return res.status(400).json({ message: "No valid contacts found for this campaign" });
+      }
+
+      // Import email service
+      const emailService = (await import('./emailService.js')).default;
+      
+      // Get user settings for sender email
+      const userSettings = await storage.getUserSettings(req.user.claims.sub);
+      const senderEmail = userSettings?.emailSignature?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0] || 'noreply@jobflow.com';
+      
+      // Send emails
+      const result = await emailService.sendBulkCampaign(
+        {
+          from: senderEmail,
+          subject: campaign.subject,
+          template: campaign.template,
+        },
+        validContacts.map(contact => ({
+          email: contact!.email,
+          name: contact!.name,
+          company: contact!.company,
+        }))
+      );
+
+      // Update campaign status
       await storage.updateEmailCampaign(id, { 
         status: 'sent',
-        sentCount: campaign.contactIds?.length || 0 
+        sentCount: result.success,
+        responseCount: 0, // Will be updated when responses come in
       });
 
-      res.json({ message: "Email campaign sent successfully" });
+      res.json({ 
+        message: "Email campaign sent successfully",
+        sent: result.success,
+        failed: result.failed,
+        total: validContacts.length
+      });
     } catch (error) {
       console.error("Error sending email campaign:", error);
       res.status(500).json({ message: "Failed to send email campaign" });
